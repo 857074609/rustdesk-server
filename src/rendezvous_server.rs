@@ -861,6 +861,10 @@ impl RendezvousServer {
             relay_server: phs.relay_server.clone(),
             socket_addr_v6: phs.socket_addr_v6,
             webrtc_sdp_answer: phs.webrtc_sdp_answer,
+            // SUPER_P2P_V187B: forward the acceptor's self-observed
+            // public mapping so the controller can probe a routable
+            // candidate (hbbs here may sit on the acceptor's LAN).
+            additional_candidates: phs.additional_candidates.clone(),
             ..Default::default()
         };
         if let Ok(t) = phs.nat_type.enum_value() {
