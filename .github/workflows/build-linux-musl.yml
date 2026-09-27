@@ -28,6 +28,13 @@ jobs:
           cargo build --release --target x86_64-unknown-linux-musl
           file target/x86_64-unknown-linux-musl/release/hbbs target/x86_64-unknown-linux-musl/release/hbbr
 
+      - name: Diagnose linking model
+        run: |
+          env | grep -E '^RUST|^CARGO' || true
+          cargo build --release --target x86_64-unknown-linux-musl -vv 2>&1 | tee /tmp/b.log | tail -n 3
+          grep -m2 'crt-static' /tmp/b.log || echo "DIAG: no crt-static in rustc invocations"
+          grep -m2 'link-arg' /tmp/b.log || true
+
       # 2026-09-27: the dynamic-musl artifact segfaulted on the deploy image
       # (alpine 3.18 / musl 1.2.3). The workflow name promises "static", so
       # enforce it: crt-static comes from .cargo/config.toml.
