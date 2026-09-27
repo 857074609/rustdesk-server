@@ -399,6 +399,35 @@ impl RendezvousServer {
         socket: &mut FramedSocket,
         key: &str,
     ) -> ResultType<()> {
+        // SUPER_P2P_V190: UDP mapping reflector (client super_p2p::reflector
+        // "SUPE" observe protocol: request 30B, reply 30B - 1:1, no
+        // amplification; the mapping is only ever revealed to its owner).
+        // Clients self-observe their NAT mapping here instead of relying on
+        // flaky public STUN (field data: cloudflare/bilibili time out on
+        // both networks; own-server reflection answers in ~5-25ms). The
+        // port-forward in front of hbbs does NOT rewrite the UDP source
+        // address, so the echoed mapping is the true public one.
+        if bytes.len() >= 30 && bytes[0..4] == *b"SUPE" && bytes[4] == 1 && bytes[5] == 0x01 {
+            let mut reply = Vec::with_capacity(30);
+            reply.extend_from_slice(b"SUPE");
+            reply.push(1u8);
+            reply.push(0x81u8);
+            reply.extend_from_slice(&bytes[6..30]); // session[16] + nonce[8] echoed
+            match addr {
+                SocketAddr::V4(a) => {
+                    reply.push(4u8);
+                    reply.extend_from_slice(&a.port().to_be_bytes());
+                    reply.extend_from_slice(&a.ip().octets());
+                }
+                SocketAddr::V6(a) => {
+                    reply.push(6u8);
+                    reply.extend_from_slice(&a.port().to_be_bytes());
+                    reply.extend_from_slice(&a.ip().octets());
+                }
+            }
+            allow_err!(socket.send_bytes(Bytes::from(reply), addr).await);
+            return Ok(());
+        }
         if let Ok(msg_in) = RendezvousMessage::parse_from_bytes(bytes) {
             match msg_in.union {
                 Some(rendezvous_message::Union::RegisterPeer(rp)) => {
