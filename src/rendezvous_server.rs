@@ -933,6 +933,9 @@ impl RendezvousServer {
             // public mapping (is_local responses carry the LAN addr,
             // which is unroutable from other sites).
             additional_candidates: la.additional_candidates.clone(),
+            // SUPER_P2P_V192: relay the controller's probe source (observed
+            // by the acceptor's serve socket) back to the controller.
+            peer_observed_addr: la.peer_observed_addr.clone(),
             ..Default::default()
         };
         p.set_is_local(true);
