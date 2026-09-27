@@ -211,6 +211,7 @@ message LocalAddr {
   string id = 4;
   string version = 5;
   bytes socket_addr_v6 = 6;
+  string additional_candidates = 7;
 }
 
 message PeerDiscovery {
