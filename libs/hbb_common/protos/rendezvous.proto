@@ -154,6 +154,10 @@ message PunchHoleResponse {
   bytes socket_addr_v6 = 11;
   string webrtc_sdp_answer = 12;
   string additional_candidates = 13;
+  // SUPER_P2P_V192: the acceptor's serve socket observed the controller's
+  // probe source - relayed back so the controller announces its exact
+  // mapping toward the acceptor (beats STUN on symmetric NATs).
+  string peer_observed_addr = 14;
 }
 
 message ConfigUpdate {
@@ -214,6 +218,9 @@ message LocalAddr {
   string version = 5;
   bytes socket_addr_v6 = 6;
   string additional_candidates = 7;
+  // SUPER_P2P_V192: the acceptor's serve socket observed the controller's
+  // probe source - carried to hbbs for relaying back to the controller.
+  string peer_observed_addr = 8;
 }
 
 message PeerDiscovery {
