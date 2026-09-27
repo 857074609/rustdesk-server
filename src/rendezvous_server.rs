@@ -900,6 +900,10 @@ impl RendezvousServer {
             pk: self.get_pk(&la.version, la.id).await,
             relay_server: la.relay_server,
             socket_addr_v6: la.socket_addr_v6,
+            // SUPER_P2P_V187B: forward the acceptor's self-observed
+            // public mapping (is_local responses carry the LAN addr,
+            // which is unroutable from other sites).
+            additional_candidates: la.additional_candidates.clone(),
             ..Default::default()
         };
         p.set_is_local(true);
