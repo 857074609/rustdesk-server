@@ -11,43 +11,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Install musl toolchain
+      # 2026-09-27: cross-building with Ubuntu's musl-gcc wrapper produced
+      # DYNAMIC musl PIEs even with forced crt-static (rustc 1.98.1, flag
+      # verified present in the rustc invocation via -vv), and the artifact
+      # segfaulted at startup on the deploy image (alpine 3.18). Build
+      # natively on a musl host instead: alpine's native toolchain defaults
+      # to true static linking. CARGO_TARGET_*_LINKER=gcc overrides the
+      # repo .cargo/config.toml "musl-gcc" (absent on alpine).
+      - name: Build hbbs and hbbr (static, native musl container)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools perl make
-          rustup target add x86_64-unknown-linux-musl
+          docker run --rm -e CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=gcc -v "$PWD:/src" -w /src rust:1-alpine sh -c '
+            set -e
+            rustc --version
+            apk add --no-cache perl make build-base
+            cargo build --release
+            file target/release/hbbs target/release/hbbr
+          '
 
-      - name: Build hbbs and hbbr (musl static)
-        env:
-          # Target-scoped env outranks any RUSTFLAGS preset on the runner image;
-          # config.toml rustflags were silently ignored in run 36299127074
-          # (artifact stayed dynamic musl PIE).
-          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-Ctarget-feature=+crt-static"
-        run: |
-          rustc --version
-          cargo build --release --target x86_64-unknown-linux-musl
-          file target/x86_64-unknown-linux-musl/release/hbbs target/x86_64-unknown-linux-musl/release/hbbr
-
-      - name: Diagnose linking model
-        run: |
-          env | grep -E '^RUST|^CARGO' || true
-          cargo build --release --target x86_64-unknown-linux-musl -vv 2>&1 | tee /tmp/b.log | tail -n 3
-          grep -m2 'crt-static' /tmp/b.log || echo "DIAG: no crt-static in rustc invocations"
-          grep -m2 'link-arg' /tmp/b.log || true
-
-      # 2026-09-27: the dynamic-musl artifact segfaulted on the deploy image
-      # (alpine 3.18 / musl 1.2.3). The workflow name promises "static", so
-      # enforce it: crt-static comes from .cargo/config.toml.
+      # The workflow name promises "static": enforce it in file(1) terms.
       - name: Verify static linkage
         run: |
-          file target/x86_64-unknown-linux-musl/release/hbbs | grep -qE "statically linked|static-pie" || { echo "[FAIL] hbbs not statically linked"; exit 1; }
-          file target/x86_64-unknown-linux-musl/release/hbbr | grep -qE "statically linked|static-pie" || { echo "[FAIL] hbbr not statically linked"; exit 1; }
+          file target/release/hbbs | grep -qE "statically linked|static-pie" || { echo "[FAIL] hbbs not statically linked"; exit 1; }
+          file target/release/hbbr | grep -qE "statically linked|static-pie" || { echo "[FAIL] hbbr not statically linked"; exit 1; }
 
       # Prove the binaries actually START on the deploy base before the
       # artifact can be consumed. Crash codes: 132=SIGILL 134=SIGABRT 139=SIGSEGV.
       - name: Smoke test on alpine 3.18 (deploy base)
         run: |
-          docker run --rm -v "$PWD/target/x86_64-unknown-linux-musl/release:/bins:ro" alpine:3.18 /bin/sh -c '
+          docker run --rm -v "$PWD/target/release:/bins:ro" alpine:3.18 /bin/sh -c '
             timeout 5 /bins/hbbs --help > /dev/null 2>&1; c1=$?
             timeout 5 /bins/hbbr --help > /dev/null 2>&1; c2=$?
             echo "hbbs exit=$c1 hbbr exit=$c2"
@@ -70,6 +61,6 @@ jobs:
         with:
           name: hbbs-hbbr-musl
           path: |
-            target/x86_64-unknown-linux-musl/release/hbbs
-            target/x86_64-unknown-linux-musl/release/hbbr
+            target/release/hbbs
+            target/release/hbbr
           if-no-files-found: error
