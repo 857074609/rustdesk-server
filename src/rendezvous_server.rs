@@ -1066,6 +1066,11 @@ impl RendezvousServer {
                     socket_addr,
                     relay_server,
                     socket_addr_v6: ph.socket_addr_v6,
+                    // SUPER_P2P_V188: forward the controller's pre-observed
+                    // probe-socket mapping so the acceptor can punch the
+                    // EXACT port (the punch-port neighborhood never covers
+                    // it - field gap ~45k ports, see V187g logs).
+                    controller_probe_addr: ph.controller_probe_addr.clone(),
                     ..Default::default()
                 });
             } else {
