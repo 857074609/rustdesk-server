@@ -3,6 +3,10 @@ linker = "x86_64-w64-mingw32-gcc"
 ar = "x86_64-w64-mingw32-ar"
 [target.x86_64-unknown-linux-musl]
 linker = "musl-gcc"
+# True static linking: the deploy image (alpine 3.18) has musl 1.2.3 while
+# the CI toolchain may emit objects the older loader cannot handle - embed
+# libc so the binary has no ld-musl dependency at all (2026-09-27 SIGSEGV).
+rustflags = ["-Ctarget-feature=+crt-static"]
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-Ctarget-feature=+crt-static"]
 [target.i686-pc-windows-msvc]
