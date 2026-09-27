@@ -18,7 +18,13 @@ jobs:
           rustup target add x86_64-unknown-linux-musl
 
       - name: Build hbbs and hbbr (musl static)
+        env:
+          # Target-scoped env outranks any RUSTFLAGS preset on the runner image;
+          # config.toml rustflags were silently ignored in run 36299127074
+          # (artifact stayed dynamic musl PIE).
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_RUSTFLAGS: "-Ctarget-feature=+crt-static"
         run: |
+          rustc --version
           cargo build --release --target x86_64-unknown-linux-musl
           file target/x86_64-unknown-linux-musl/release/hbbs target/x86_64-unknown-linux-musl/release/hbbr
 
