@@ -22,6 +22,31 @@ jobs:
           cargo build --release --target x86_64-unknown-linux-musl
           file target/x86_64-unknown-linux-musl/release/hbbs target/x86_64-unknown-linux-musl/release/hbbr
 
+      # 2026-09-27: the dynamic-musl artifact segfaulted on the deploy image
+      # (alpine 3.18 / musl 1.2.3). The workflow name promises "static", so
+      # enforce it: crt-static comes from .cargo/config.toml.
+      - name: Verify static linkage
+        run: |
+          file target/x86_64-unknown-linux-musl/release/hbbs | grep -q "statically linked" || { echo "[FAIL] hbbs not statically linked"; exit 1; }
+          file target/x86_64-unknown-linux-musl/release/hbbr | grep -q "statically linked" || { echo "[FAIL] hbbr not statically linked"; exit 1; }
+
+      # Prove the binaries actually START on the deploy base before the
+      # artifact can be consumed. Crash codes: 132=SIGILL 134=SIGABRT 139=SIGSEGV.
+      - name: Smoke test on alpine 3.18 (deploy base)
+        run: |
+          docker run --rm -v "$PWD/target/x86_64-unknown-linux-musl/release:/bins:ro" alpine:3.18 /bin/sh -c '
+            timeout 5 /bins/hbbs --help > /dev/null 2>&1; c1=$?
+            timeout 5 /bins/hbbr --help > /dev/null 2>&1; c2=$?
+            echo "hbbs exit=$c1 hbbr exit=$c2"
+            for c in $c1 $c2; do
+              if [ "$c" -eq 139 ] || [ "$c" -eq 132 ] || [ "$c" -eq 134 ]; then
+                echo "[FAIL] binary crashed on alpine 3.18 (exit=$c)"
+                exit 1
+              fi
+            done
+            echo "[OK] binaries start on alpine 3.18"
+          '
+
       - name: Verify super-p2p changes compiled in
         run: |
           grep -q "additional_candidates" src/rendezvous_server.rs || { echo "[FAIL] passthrough missing"; exit 1; }
