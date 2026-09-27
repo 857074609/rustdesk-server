@@ -152,6 +152,27 @@ impl FramedSocket {
         Ok(())
     }
 
+    // SUPER_P2P_V190: like send_raw but takes runtime-built bytes (the UDP
+    // mapping reflector echoes the observed source address back).
+    #[inline]
+    pub async fn send_bytes(
+        &mut self,
+        msg: Bytes,
+        addr: impl IntoTargetAddr<'static>,
+    ) -> ResultType<()> {
+        let addr = addr.into_target_addr()?.to_owned();
+
+        match self {
+            Self::Direct(f, is_ipv6) => {
+                if let TargetAddr::Ip(addr) = addr {
+                    f.send((msg, fix_addr_family(addr, *is_ipv6))).await?
+                }
+            }
+            Self::ProxySocks(f) => f.send((msg, addr)).await?,
+        };
+        Ok(())
+    }
+
     #[inline]
     pub async fn next(&mut self) -> Option<ResultType<(BytesMut, TargetAddr<'static>)>> {
         match self {
